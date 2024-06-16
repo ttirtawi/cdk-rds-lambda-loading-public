@@ -1,14 +1,19 @@
-# Welcome to your CDK TypeScript project
+# CDK Demo Lambda to Initial Load New RDS database
 
-This is a blank project for CDK development with TypeScript.
+This stack will creates:
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+1. A new VPC with public and private subnet.
+2. A database subnet group. 
+3. RDS MySQL Single AZ.
+4. Lambda function to load the data sample (employees data).
+5. Custom Resource to invoke lambda once RDS has been created successfully.
+6. An EC2 instance to connect to the RDS and validate the data.
 
-## Useful commands
+For load multiple values, we need to use `cursor.executemany`.
 
-* `npm run build`   compile typescript to js
-* `npm run watch`   watch for changes and compile
-* `npm run test`    perform the jest unit tests
-* `npx cdk deploy`  deploy this stack to your default AWS account/region
-* `npx cdk diff`    compare deployed stack with current state
-* `npx cdk synth`   emits the synthesized CloudFormation template
+```
+values = ast.literal_eval(values)
+cursor.executemany(script,values)
+```
+
+In every cycle we need to do `connection.commit()`
