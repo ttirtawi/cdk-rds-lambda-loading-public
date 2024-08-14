@@ -9,7 +9,7 @@ import * as logs from 'aws-cdk-lib/aws-logs';
 import * as customresource from 'aws-cdk-lib/custom-resources';
 import { readFileSync } from 'fs';
 
-export class CdkRdsLambdaLoadingStack extends cdk.Stack {
+export class CdkRdsLambdaLoadingStack2 extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
@@ -18,6 +18,24 @@ export class CdkRdsLambdaLoadingStack extends cdk.Stack {
 
     const vpc = new ec2.Vpc(this, 'VPC', {
       ipAddresses: ec2.IpAddresses.cidr('10.0.0.0/16'),
+      natGateways: 1,
+      maxAzs: 2,
+      subnetConfiguration: [
+        {
+          name: 'public',
+          subnetType: ec2.SubnetType.PUBLIC,
+          cidrMask: 24,
+        },
+        {
+          name: 'private',
+          subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+          cidrMask: 24,
+        },
+      ],
+    });
+
+    const vpc2 = new ec2.Vpc(this, 'VPC', {
+      ipAddresses: ec2.IpAddresses.cidr('10.2.0.0/16'),
       natGateways: 1,
       maxAzs: 2,
       subnetConfiguration: [
@@ -43,6 +61,15 @@ export class CdkRdsLambdaLoadingStack extends cdk.Stack {
       },
     });
 
+    // create database subnet group with private subnet
+    const subnetGroup2 = new rds.SubnetGroup(this, 'SubnetGroup2', {
+      vpc: vpc2,
+      description: 'subnet group for rds',
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+      },
+    });
+
     // create security group for mysql port accept for all vpc ip
     const dbsecurityGroup = new ec2.SecurityGroup(this, 'RdsSecurityGroup', {
       vpc: vpc,
@@ -50,6 +77,15 @@ export class CdkRdsLambdaLoadingStack extends cdk.Stack {
       allowAllOutbound: true,
     });
     dbsecurityGroup.addIngressRule(ec2.Peer.ipv4(vpc.vpcCidrBlock), ec2.Port.tcp(3306), 'accept all mysql port');
+
+    // create security group for mysql port accept for all vpc ip
+    const dbsecurityGroup2 = new ec2.SecurityGroup(this, 'RdsSecurityGroup2', {
+      vpc: vpc2,
+      description: 'security group for rds read replica',
+      allowAllOutbound: true,
+    });
+    dbsecurityGroup2.addIngressRule(ec2.Peer.ipv4(vpc2.vpcCidrBlock), ec2.Port.tcp(3306), 'accept all mysql port');
+
 
     // create rds password in secret manager
     const secret = new secretsmanager.Secret(this, 'Secret', {
@@ -166,7 +202,7 @@ export class CdkRdsLambdaLoadingStack extends cdk.Stack {
     });
 
     // Create EC2 Instance
-    const instance2 = new ec2.Instance(this, 'ec2instance2', {
+    const instance = new ec2.Instance(this, 'ec2instance', {
       instanceType: ec2.InstanceType.of(
         ec2.InstanceClass.T4G,
         ec2.InstanceSize.MEDIUM
@@ -183,64 +219,7 @@ export class CdkRdsLambdaLoadingStack extends cdk.Stack {
     })
 
     const userData = readFileSync('./lib/userdata.sh', 'utf8');
-    instance2.addUserData(userData);
-    
-    const vpc2 = new ec2.Vpc(this, 'VPC2', {
-      ipAddresses: ec2.IpAddresses.cidr('10.2.0.0/16'),
-      natGateways: 1,
-      maxAzs: 2,
-      subnetConfiguration: [
-        {
-          name: 'public',
-          subnetType: ec2.SubnetType.PUBLIC,
-          cidrMask: 24,
-        },
-        {
-          name: 'private',
-          subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-          cidrMask: 24,
-        },
-      ],
-    });
-
-
-    // create database subnet group with private subnet
-    const subnetGroup2 = new rds.SubnetGroup(this, 'SubnetGroup2', {
-      vpc: vpc2,
-      description: 'subnet group for rds',
-      vpcSubnets: {
-        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-      },
-    });
-
-    // create security group for mysql port accept for all vpc ip
-    const dbsecurityGroup2 = new ec2.SecurityGroup(this, 'RdsSecurityGroup2', {
-      vpc: vpc2,
-      description: 'security group for rds read replica',
-      allowAllOutbound: true,
-    });
-    dbsecurityGroup2.addIngressRule(ec2.Peer.ipv4(vpc2.vpcCidrBlock), ec2.Port.tcp(3306), 'accept all mysql port');
-
-    // Create EC2 Instance
-    const instanceVpc2 = new ec2.Instance(this, 'ec2instance-vpc2', {
-      instanceType: ec2.InstanceType.of(
-        ec2.InstanceClass.T4G,
-        ec2.InstanceSize.MEDIUM
-      ),
-      vpc: vpc2,
-      vpcSubnets: {
-        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-      },
-      machineImage: new ec2.AmazonLinuxImage({
-        cpuType: ec2.AmazonLinuxCpuType.ARM_64,
-        generation: ec2.AmazonLinuxGeneration.AMAZON_LINUX_2
-      }),
-      role,
-    })
-
-    const userData2 = readFileSync('./lib/userdata.sh', 'utf8');
-    instanceVpc2.addUserData(userData);
-    
+    instance.addUserData(userData);
 
     // output vpc id
     new cdk.CfnOutput(this, 'VPCId', {value: vpc.vpcId});
@@ -251,12 +230,8 @@ export class CdkRdsLambdaLoadingStack extends cdk.Stack {
     // output lambda function name
     new cdk.CfnOutput(this, 'LambdaFunctionArn', { value: lambdaLoader.functionArn});
     // output ec2 id
-    new cdk.CfnOutput(this, 'EC2Id', { value: instance2.instanceId});
+    new cdk.CfnOutput(this, 'EC2Id', { value: instance.instanceId});
 
-    // output vpc2 id
-    new cdk.CfnOutput(this, 'VPC2Id', {value: vpc2.vpcId});
-    // output id of ec2 2
-    new cdk.CfnOutput(this, 'EC22Id', { value: instanceVpc2.instanceId}); 
 
   }
 }
