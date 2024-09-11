@@ -17,3 +17,5 @@ cursor.executemany(script,values)
 ```
 
 In every cycle we need to do `connection.commit()`
+
+Employees data was taken from https://github.com/datacharmer/test_db
