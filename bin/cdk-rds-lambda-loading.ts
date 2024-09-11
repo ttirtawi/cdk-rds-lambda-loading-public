@@ -7,7 +7,7 @@ const app = new cdk.App();
 new CdkRdsLambdaLoadingStack(app, 'rdslambdaloading', {
   description: 'RDS with Lambda to initial load the tables',
   env: {
-    region: 'ap-southeast-3',
-    account: '452922823873'
+    region: 'process.env.CDK_DEFAULT_REGION',
+    account: 'process.env.CDK_DEFAULT_ACCOUNT'
   }
 });
